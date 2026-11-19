@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>رفع الفيديوهات لليوتيوب</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c2430; --mut:#667085; --line:#e3e7ee; --acc:#1a56db; --ok:#0a7d3c; --err:#b42318; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12161c; --card:#1b212b; --ink:#e8ecf2; --mut:#98a2b3; --line:#2b3340; --acc:#6ea0ff; --ok:#4cc38a; --err:#ff8a80; } }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:16px/1.55 system-ui, "Segoe UI", Tahoma, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 4px 0 14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
+  .card h2 { font-size:16px; margin:0 0 10px; }
+  label { display:block; font-size:14px; color:var(--mut); margin:10px 0 4px; }
+  input[type=text], input[type=password] { width:100%; padding:11px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font-size:16px; direction:ltr; text-align:left; }
+  button { font:inherit; padding:11px 14px; border-radius:8px; border:1px solid var(--acc); background:var(--acc); color:#fff; cursor:pointer; min-height:44px; }
+  button.sec { background:transparent; color:var(--acc); }
+  button:disabled { opacity:.5; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .crumbs { font-size:14px; color:var(--mut); margin:8px 0; word-break:break-word; }
+  .crumbs a { color:var(--acc); cursor:pointer; text-decoration:underline; }
+  .item { display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line); }
+  .item:last-child { border-bottom:0; }
+  .item .name { flex:1; word-break:break-word; }
+  .item .meta { font-size:13px; color:var(--mut); }
+  .item input[type=checkbox] { width:22px; height:22px; flex:none; }
+  .open { font-size:13px; padding:6px 10px; min-height:36px; }
+  .msg { padding:10px; border-radius:8px; margin-top:10px; font-size:15px; word-break:break-word; }
+  .msg.ok { border:1px solid var(--ok); color:var(--ok); } .msg.err { border:1px solid var(--err); color:var(--err); }
+  code, .ltr { direction:ltr; unicode-bidi:plaintext; }
+  details summary { cursor:pointer; color:var(--acc); }
+  .small { font-size:13px; color:var(--mut); }
+</style>
+</head>
+<body>
+<main>
+<h1>رفع الفيديوهات من درايف لليوتيوب</h1>
+
+<div class="card">
+  <h2>١. الإعدادات (بتتحفظ في متصفحك بس)</h2>
+  <label>Google Client ID</label>
+  <input type="text" id="clientId" autocomplete="off" placeholder="xxxx.apps.googleusercontent.com">
+  <label>GitHub token (fine-grained، على ريبو المشروع الأساسي بس، صلاحية Actions: Read and write)</label>
+  <input type="password" id="ghToken" autocomplete="off" placeholder="github_pat_...">
+  <label>اسم الريبو الأساسي</label>
+  <input type="text" id="repo" value="KyrillosMorgan/drive-to-youtube-merger">
+  <label>الـ branch</label>
+  <input type="text" id="branch" value="main">
+  <div class="row"><button id="save">حفظ</button></div>
+  <p class="small">الـ Client Secret مش مطلوب هنا ومش بيتخزن في الصفحة نهائياً.</p>
+</div>
+
+<div class="card">
+  <h2>٢. اختار الفولدرات</h2>
+  <div class="row">
+    <button id="signin">تسجيل الدخول بحساب الدرايف</button>
+    <button class="sec" id="goRoot" disabled>My Drive</button>
+    <button class="sec" id="goShared" disabled>Shared with me</button>
+  </div>
+  <div class="crumbs" id="crumbs"></div>
+  <div id="list"></div>
+  <div class="row">
+    <button class="sec" id="selAll" disabled>تحديد الكل</button>
+    <button class="sec" id="selNone" disabled>إلغاء التحديد</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>٣. ابدأ المعالجة</h2>
+  <div id="chosen" class="small">مفيش فولدرات متحددة.</div>
+  <div class="row"><button id="run" disabled>ابدأ معالجة المحدد</button></div>
+  <div id="result"></div>
+  <p class="small">الـ workflow هيعالج ٣ فولدرات كل يوم لوحده لحد ما الطابور يخلص. مش محتاج تعمل حاجة تاني.</p>
+</div>
+
+<details class="card">
+  <summary>معلومات الإعداد في Google Cloud</summary>
+  <p class="small">في الـ OAuth client (Web application) ضيف:</p>
+  <p class="ltr"><b>Authorized JavaScript origins:</b><br><code id="origin"></code></p>
+  <p class="ltr"><b>Authorized redirect URIs:</b><br><code>https://developers.google.com/oauthplayground</code></p>
+</details>
+</main>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k, d) { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+  const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+  const API = "https://www.googleapis.com/drive/v3/files";
+  let accessToken = null, tokenClient = null;
+  let stack = [{ id: "root", name: "My Drive" }];
+  let selected = new Map(); // id -> name
+
+  $("origin").textContent = location.origin;
+  $("clientId").value = store.get("clientId", "");
+  $("ghToken").value = store.get("ghToken", "");
+  $("repo").value = store.get("repo", $("repo").value);
+  $("branch").value = store.get("branch", "main");
+
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const fmtGB = b => (b / 1e9).toFixed(2) + " GB";
+
+  $("save").onclick = () => {
+    store.set("clientId", $("clientId").value.trim());
+    store.set("ghToken", $("ghToken").value.trim());
+    store.set("repo", $("repo").value.trim());
+    store.set("branch", $("branch").value.trim() || "main");
+    tokenClient = null;
+    msg("اتحفظت الإعدادات.", true);
+  };
+
+  function msg(text, ok) {
+    $("result").innerHTML = `<div class="msg ${ok ? "ok" : "err"}">${esc(text)}</div>`;
+  }
+
+  $("signin").onclick = () => {
+    const cid = $("clientId").value.trim();
+    if (!cid) return msg("اكتب الـ Client ID واضغط حفظ الأول.", false);
+    if (!window.google || !google.accounts) return msg("مكتبة جوجل لسه بتحمّل، جرب كمان ثانية.", false);
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: cid, scope: SCOPE,
+      callback: resp => {
+        if (resp.error) return msg("فشل تسجيل الدخول: " + resp.error, false);
+        accessToken = resp.access_token;
+        ["goRoot", "goShared", "selAll", "selNone"].forEach(i => $(i).disabled = false);
+        stack = [{ id: "root", name: "My Drive" }];
+        load();
+      }
+    });
+    tokenClient.requestAccessToken({ prompt: "select_account" });
+  };
+
+  async function drive(params) {
+    const u = new URL(API);
+    Object.entries({ supportsAllDrives: "true", includeItemsFromAllDrives: "true", pageSize: "200", ...params })
+      .forEach(([k, v]) => u.searchParams.set(k, v));
+    const r = await fetch(u, { headers: { Authorization: "Bearer " + accessToken } });
+    if (r.status === 401) { accessToken = null; throw new Error("انتهت الجلسة، سجّل الدخول تاني."); }
+    if (!r.ok) throw new Error("Drive error " + r.status);
+    return r.json();
+  }
+
+  async function load() {
+    const cur = stack[stack.length - 1];
+    renderCrumbs();
+    $("list").innerHTML = '<p class="small">جاري التحميل...</p>';
+    try {
+      const q = cur.id === "shared"
+        ? "sharedWithMe = true and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        : `'${cur.id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+      const j = await drive({ q, fields: "files(id,name)", orderBy: "name_natural" });
+      renderList(j.files || []);
+    } catch (e) { $("list").innerHTML = ""; msg(e.message, false); }
+  }
+
+  function renderCrumbs() {
+    $("crumbs").innerHTML = stack.map((s, i) =>
+      i === stack.length - 1 ? `<b>${esc(s.name)}</b>` : `<a data-i="${i}">${esc(s.name)}</a>`).join(" › ");
+    $("crumbs").querySelectorAll("a").forEach(a => a.onclick = () => { stack = stack.slice(0, +a.dataset.i + 1); load(); });
+  }
+
+  function renderList(folders) {
+    if (!folders.length) { $("list").innerHTML = '<p class="small">مفيش فولدرات هنا.</p>'; return; }
+    $("list").innerHTML = folders.map(f => `
+      <div class="item" data-id="${esc(f.id)}" data-name="${esc(f.name)}">
+        <input type="checkbox" ${selected.has(f.id) ? "checked" : ""}>
+        <div class="name">${esc(f.name)}<div class="meta">...</div></div>
+        <button class="sec open">فتح</button>
+      </div>`).join("");
+    $("list").querySelectorAll(".item").forEach(row => {
+      const id = row.dataset.id, name = row.dataset.name;
+      row.querySelector("input").onchange = e => { e.target.checked ? selected.set(id, name) : selected.delete(id); updateChosen(); };
+      row.querySelector(".open").onclick = () => { stack.push({ id, name }); load(); };
+      fileInfo(id, row.querySelector(".meta"));
+    });
+    updateChosen();
+  }
+
+  async function fileInfo(id, el) {
+    try {
+      let count = 0, size = 0, hasDesc = false, token = null;
+      do {
+        const p = { q: `'${id}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`, fields: "nextPageToken,files(name,size)" };
+        if (token) p.pageToken = token;
+        const j = await drive(p);
+        (j.files || []).forEach(f => {
+          if (/\.mp4$/i.test(f.name)) { count++; size += +f.size || 0; }
+          if (f.name.trim().toLowerCase() === "description.txt") hasDesc = true;
+        });
+        token = j.nextPageToken;
+      } while (token);
+      el.textContent = `${count} فيديو · ${fmtGB(size)}${hasDesc ? " · فيه description.txt" : ""}`;
+    } catch (e) { el.textContent = ""; }
+  }
+
+  function updateChosen() {
+    const n = selected.size;
+    $("chosen").textContent = n ? `المحدد: ${n} — ${[...selected.values()].join(" ، ")}` : "مفيش فولدرات متحددة.";
+    $("run").disabled = n === 0;
+  }
+
+  $("goRoot").onclick = () => { stack = [{ id: "root", name: "My Drive" }]; load(); };
+  $("goShared").onclick = () => { stack = [{ id: "shared", name: "Shared with me" }]; load(); };
+  const setAll = on => $("list").querySelectorAll(".item").forEach(row => {
+    const cb = row.querySelector("input"); cb.checked = on;
+    on ? selected.set(row.dataset.id, row.dataset.name) : selected.delete(row.dataset.id);
+  });
+  $("selAll").onclick = () => { setAll(true); updateChosen(); };
+  $("selNone").onclick = () => { setAll(false); updateChosen(); };
+
+  $("run").onclick = async () => {
+    const ids = [...selected.keys()].join(",");
+    const gh = $("ghToken").value.trim(), repo = $("repo").value.trim(), branch = $("branch").value.trim() || "main";
+    if (!gh) {
+      $("result").innerHTML = `<div class="msg err">مفيش GitHub token. انسخ الـ IDs دي وحطها في Run workflow يدوي:<br><code>${esc(ids)}</code></div>`;
+      try { await navigator.clipboard.writeText(ids); } catch (e) {}
+      return;
+    }
+    $("run").disabled = true;
+    try {
+      const r = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/merge-upload.yml/dispatches`, {
+        method: "POST",
+        headers: { Authorization: "Bearer " + gh, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
+        body: JSON.stringify({ ref: branch, inputs: { folder_ids: ids } })
+      });
+      if (r.status === 204) msg(`اتبعت ${selected.size} فولدر للمعالجة. تابع التقدم من تبويب Actions في الريبو.`, true);
+      else msg(`GitHub رفض الطلب (${r.status}): ${(await r.text()).slice(0, 200)}`, false);
+    } catch (e) { msg("فشل الاتصال بـ GitHub: " + e.message, false); }
+    $("run").disabled = selected.size === 0;
+  };
+})();
+</script>
+</body>
+</html>
