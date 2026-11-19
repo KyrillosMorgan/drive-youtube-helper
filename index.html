@@ -229,7 +229,7 @@
         headers: { Authorization: "Bearer " + gh, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
         body: JSON.stringify({ ref: branch, inputs: { folder_ids: ids } })
       });
-      if (r.status === 204) msg(`اتبعت ${selected.size} فولدر للمعالجة. تابع التقدم من تبويب Actions في الريبو.`, true);
+      if (r.status === 204) msg(`اتبعت ${selected.size} فولدر للمعالجة. تابع التقدم من <a href="https://github.com/KyrillosMorgan/drive-to-youtube-merger/actions" target="_blank">هنا</a>`, true);
       else msg(`GitHub رفض الطلب (${r.status}): ${(await r.text()).slice(0, 200)}`, false);
     } catch (e) { msg("فشل الاتصال بـ GitHub: " + e.message, false); }
     $("run").disabled = selected.size === 0;
