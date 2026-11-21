@@ -3,57 +3,114 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>رفع الفيديوهات لليوتيوب</title>
+<title>لوحة رفع الفيديوهات</title>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c2430; --mut:#667085; --line:#e3e7ee; --acc:#1a56db; --ok:#0a7d3c; --err:#b42318; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#12161c; --card:#1b212b; --ink:#e8ecf2; --mut:#98a2b3; --line:#2b3340; --acc:#6ea0ff; --ok:#4cc38a; --err:#ff8a80; } }
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c2430; --mut:#667085; --line:#e3e7ee; --acc:#1a56db; --ok:#0a7d3c; --err:#b42318; --warn:#9a6700; --chip:#eef1f6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12161c; --card:#1b212b; --ink:#e8ecf2; --mut:#98a2b3; --line:#2b3340; --acc:#6ea0ff; --ok:#4cc38a; --err:#ff8a80; --warn:#e3b341; --chip:#262e3a; } }
   * { box-sizing: border-box; }
   body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:16px/1.55 system-ui, "Segoe UI", Tahoma, sans-serif; }
-  main { max-width: 640px; margin: 0 auto; }
+  main { max-width: 680px; margin: 0 auto; }
   h1 { font-size: 20px; margin: 4px 0 14px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
-  .card h2 { font-size:16px; margin:0 0 10px; }
+  .card h2 { font-size:16px; margin:0 0 10px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
   label { display:block; font-size:14px; color:var(--mut); margin:10px 0 4px; }
-  input[type=text], input[type=password] { width:100%; padding:11px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font-size:16px; direction:ltr; text-align:left; }
-  button { font:inherit; padding:11px 14px; border-radius:8px; border:1px solid var(--acc); background:var(--acc); color:#fff; cursor:pointer; min-height:44px; }
+  input[type=text], input[type=password], input[type=number] { width:100%; padding:11px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font-size:16px; direction:ltr; text-align:left; }
+  button { font:inherit; padding:10px 14px; border-radius:8px; border:1px solid var(--acc); background:var(--acc); color:#fff; cursor:pointer; min-height:44px; }
   button.sec { background:transparent; color:var(--acc); }
+  button.danger { background:transparent; color:var(--err); border-color:var(--err); }
+  button.sm { font-size:13px; padding:5px 10px; min-height:34px; }
   button:disabled { opacity:.5; }
   .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
-  .crumbs { font-size:14px; color:var(--mut); margin:8px 0; word-break:break-word; }
-  .crumbs a { color:var(--acc); cursor:pointer; text-decoration:underline; }
-  .item { display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line); }
+  .grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+  .stat { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px; }
+  .stat .k { font-size:12px; color:var(--mut); } .stat .v { font-size:16px; font-weight:600; word-break:break-word; }
+  .item { padding:10px 2px; border-bottom:1px solid var(--line); }
   .item:last-child { border-bottom:0; }
-  .item .name { flex:1; word-break:break-word; }
-  .item .meta { font-size:13px; color:var(--mut); }
-  .item input[type=checkbox] { width:22px; height:22px; flex:none; }
-  .open { font-size:13px; padding:6px 10px; min-height:36px; }
+  .item .top { display:flex; align-items:flex-start; gap:10px; }
+  .item .name { flex:1; word-break:break-word; font-weight:600; }
+  .meta { font-size:13px; color:var(--mut); word-break:break-word; }
+  .badge { font-size:12px; padding:2px 8px; border-radius:999px; background:var(--chip); white-space:nowrap; }
+  .b-done { color:var(--ok); } .b-attention { color:var(--err); } .b-retry { color:var(--warn); } .b-run { color:var(--acc); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .chip { font-size:12px; padding:2px 8px; border-radius:999px; background:var(--chip); }
+  .chip.warn { color:var(--warn); } .chip.bad { color:var(--err); } .chip.good { color:var(--ok); }
   .msg { padding:10px; border-radius:8px; margin-top:10px; font-size:15px; word-break:break-word; }
   .msg.ok { border:1px solid var(--ok); color:var(--ok); } .msg.err { border:1px solid var(--err); color:var(--err); }
+  .crumbs { font-size:14px; color:var(--mut); margin:8px 0; word-break:break-word; }
+  .crumbs a { color:var(--acc); cursor:pointer; text-decoration:underline; }
+  .pick { display:flex; align-items:center; gap:10px; }
+  .pick input[type=checkbox] { width:22px; height:22px; flex:none; }
+  a { color:var(--acc); }
   code, .ltr { direction:ltr; unicode-bidi:plaintext; }
   details summary { cursor:pointer; color:var(--acc); }
   .small { font-size:13px; color:var(--mut); }
+  .hide { display:none; }
 </style>
 </head>
 <body>
 <main>
-<h1>رفع الفيديوهات من درايف لليوتيوب</h1>
+<h1>لوحة رفع الفيديوهات من درايف لليوتيوب</h1>
 
-<div class="card">
-  <h2>١. الإعدادات (بتتحفظ في متصفحك بس)</h2>
-  <label>Google Client ID</label>
-  <input type="text" id="clientId" autocomplete="off" placeholder="xxxx.apps.googleusercontent.com">
-  <label>GitHub token (fine-grained، على ريبو المشروع الأساسي بس، صلاحية Actions: Read and write)</label>
+<details class="card" id="settingsCard" open>
+  <summary><b>الإعدادات</b> (بتتحفظ في متصفحك بس)</summary>
+  <label>GitHub token (fine-grained، على الريبو الأساسي بس: Actions read/write + Contents read-only)</label>
   <input type="password" id="ghToken" autocomplete="off" placeholder="github_pat_...">
   <label>اسم الريبو الأساسي</label>
   <input type="text" id="repo" value="KyrillosMorgan/drive-to-youtube-merger">
   <label>الـ branch</label>
   <input type="text" id="branch" value="main">
-  <div class="row"><button id="save">حفظ</button></div>
-  <p class="small">الـ Client Secret مش مطلوب هنا ومش بيتخزن في الصفحة نهائياً.</p>
+  <label>Google Client ID (للتصفح في درايف فقط)</label>
+  <input type="text" id="clientId" autocomplete="off" placeholder="xxxx.apps.googleusercontent.com">
+  <div class="row"><button id="save">حفظ وتحديث</button></div>
+  <p class="small">الـ Client Secret مش مطلوب هنا ومش بيتخزن في الصفحة نهائياً. في Google Cloud ضيف الـ origin
+    <code id="origin"></code> في Authorized JavaScript origins.</p>
+</details>
+
+<div id="msg"></div>
+
+<div class="card" id="dash">
+  <h2>الحالة <span class="row" style="margin:0"><button class="sec sm" id="refresh">تحديث</button></span></h2>
+  <div class="grid">
+    <div class="stat"><div class="k">القناة</div><div class="v" id="sChannel">—</div></div>
+    <div class="stat"><div class="k">الرفع النهارده (كوتا اليوتيوب)</div><div class="v" id="sQuota">—</div><div class="meta" id="sReset"></div></div>
+    <div class="stat"><div class="k">التشغيل التلقائي الجاي</div><div class="v" id="sNext">—</div><div class="meta">GitHub ممكن يتأخر ساعات</div></div>
+    <div class="stat"><div class="k">آخر فحص للتوكنات</div><div class="v" id="sHealth">—</div></div>
+  </div>
+  <div id="sNote" class="small" style="margin-top:8px"></div>
+  <div class="row">
+    <button id="runNow">شغّل دلوقتي</button>
+    <button class="sec" id="dryRun">فحص بدون رفع (Dry run)</button>
+  </div>
 </div>
 
 <div class="card">
-  <h2>٢. اختار الفولدرات</h2>
+  <h2>التشغيلات</h2>
+  <div id="runs" class="small">—</div>
+</div>
+
+<div class="card">
+  <h2>الفولدرات</h2>
+  <div id="folders" class="small">—</div>
+</div>
+
+<div class="card">
+  <h2>الجدول المتوقع</h2>
+  <div id="projection" class="small">—</div>
+  <p class="small">ده تقدير من الحجم والكوتا، بيتعدل لو حاجة فشلت أو GitHub اتأخر.</p>
+</div>
+
+<div class="card">
+  <h2>إعدادات الشغل</h2>
+  <div class="grid">
+    <div><label>أقصى رفعات في اليوم (1 إلى 6)</label><input type="number" id="cMax" min="1" max="6"></div>
+    <div><label>ميزانية الدقايق لكل تشغيل</label><input type="number" id="cMin" min="30" max="330"></div>
+    <div><label>محاولات قبل "محتاج تدخل"</label><input type="number" id="cAtt" min="1" max="10"></div>
+  </div>
+  <div class="row"><button class="sec" id="saveCfg">حفظ إعدادات الشغل</button></div>
+</div>
+
+<div class="card">
+  <h2>إضافة فولدرات من درايف</h2>
   <div class="row">
     <button id="signin">تسجيل الدخول بحساب الدرايف</button>
     <button class="sec" id="goRoot" disabled>My Drive</button>
@@ -65,21 +122,15 @@
     <button class="sec" id="selAll" disabled>تحديد الكل</button>
     <button class="sec" id="selNone" disabled>إلغاء التحديد</button>
   </div>
-</div>
-
-<div class="card">
-  <h2>٣. ابدأ المعالجة</h2>
-  <div id="chosen" class="small">مفيش فولدرات متحددة.</div>
+  <div id="chosen" class="small" style="margin-top:8px">مفيش فولدرات متحددة.</div>
   <div class="row"><button id="run" disabled>ابدأ معالجة المحدد</button></div>
-  <div id="result"></div>
-  <p class="small">الـ workflow هيعالج ٣ فولدرات كل يوم لوحده لحد ما الطابور يخلص. مش محتاج تعمل حاجة تاني.</p>
+  <p class="small">الفولدرات بتتضاف للطابور وبتتعالج تلقائي بالحد اليومي. لو كوتا النهارده خلصت بتستنى أقرب تشغيل بعد التصفير.</p>
 </div>
 
 <details class="card">
   <summary>معلومات الإعداد في Google Cloud</summary>
-  <p class="small">في الـ OAuth client (Web application) ضيف:</p>
-  <p class="ltr"><b>Authorized JavaScript origins:</b><br><code id="origin"></code></p>
-  <p class="ltr"><b>Authorized redirect URIs:</b><br><code>https://developers.google.com/oauthplayground</code></p>
+  <p class="ltr"><b>Authorized JavaScript origins:</b><br><code id="origin2"></code></p>
+  <p class="ltr"><b>Authorized redirect URIs (للتوكنات من OAuth Playground):</b><br><code>https://developers.google.com/oauthplayground</code></p>
 </details>
 </main>
 
@@ -91,55 +142,217 @@
     get(k, d) { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   };
-  const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
-  const API = "https://www.googleapis.com/drive/v3/files";
-  let accessToken = null, tokenClient = null;
-  let stack = [{ id: "root", name: "My Drive" }];
-  let selected = new Map(); // id -> name
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const safeYt = u => (typeof u === "string" && /^https:\/\/youtu\.be\/[\w-]+$/.test(u)) ? u : null;
+  const safeGh = u => (typeof u === "string" && u.startsWith("https://github.com/")) ? u : null;
+  const fmtGB = b => (b / 1e9).toFixed(2) + " GB";
+  const LOC = "ar-EG-u-nu-latn";
+  const fmt = iso => iso ? new Date(iso).toLocaleString(LOC, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 
-  $("origin").textContent = location.origin;
-  $("clientId").value = store.get("clientId", "");
+  const cfg = {
+    get token() { return $("ghToken").value.trim(); },
+    get repo() { return $("repo").value.trim(); },
+    get branch() { return $("branch").value.trim() || "main"; }
+  };
+  const GH = "https://api.github.com";
+  const WF = "merge-upload.yml", HEALTH = "health-check.yml";
+  let status = null, runs = [], health = null, jobsByRun = {}, timer = null;
+
+  $("origin").textContent = location.origin; $("origin2").textContent = location.origin;
   $("ghToken").value = store.get("ghToken", "");
   $("repo").value = store.get("repo", $("repo").value);
   $("branch").value = store.get("branch", "main");
+  $("clientId").value = store.get("clientId", "");
+  if (cfg.token) $("settingsCard").open = false;
 
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const fmtGB = b => (b / 1e9).toFixed(2) + " GB";
+  function say(text, ok) { $("msg").innerHTML = text ? `<div class="msg ${ok ? "ok" : "err"}">${esc(text)}</div>` : ""; }
+  function sayHtml(html, ok) { $("msg").innerHTML = `<div class="msg ${ok ? "ok" : "err"}">${html}</div>`; }
+
+  // ------------------------------------------------------------ GitHub API
+  const ghHeaders = extra => ({ Authorization: "Bearer " + cfg.token, "X-GitHub-Api-Version": "2022-11-28", Accept: "application/vnd.github+json", ...extra });
+  async function ghJson(path) {
+    const r = await fetch(`${GH}/repos/${cfg.repo}${path}`, { headers: ghHeaders(), cache: "no-store" });
+    if (!r.ok) throw Object.assign(new Error("GitHub " + r.status), { status: r.status });
+    return r.json();
+  }
+  async function ghFile(path) {
+    const r = await fetch(`${GH}/repos/${cfg.repo}/contents/${path}?ref=${encodeURIComponent(cfg.branch)}&t=${Date.now()}`,
+      { headers: ghHeaders({ Accept: "application/vnd.github.raw+json" }), cache: "no-store" });
+    if (r.status === 404) return null;
+    if (!r.ok) throw Object.assign(new Error("GitHub " + r.status), { status: r.status });
+    return JSON.parse(await r.text());
+  }
+  async function dispatch(inputs) {
+    const body = { ref: cfg.branch, inputs: Object.fromEntries(Object.entries(inputs).map(([k, v]) => [k, String(v)])) };
+    const r = await fetch(`${GH}/repos/${cfg.repo}/actions/workflows/${WF}/dispatches`, {
+      method: "POST", headers: ghHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(body) });
+    if (r.status !== 204) throw new Error(`GitHub رفض الطلب (${r.status}): ${(await r.text()).slice(0, 160)}`);
+  }
+
+  // ------------------------------------------------------------ load + render
+  async function refresh() {
+    if (!cfg.token) { say("اكتب الـ GitHub token في الإعدادات الأول.", false); return; }
+    try {
+      const [st, rs, hs] = await Promise.all([
+        ghFile("status.json"),
+        ghJson(`/actions/workflows/${WF}/runs?per_page=5`),
+        ghJson(`/actions/workflows/${HEALTH}/runs?per_page=1`).catch(() => null)
+      ]);
+      status = st; runs = rs.workflow_runs || []; health = hs && hs.workflow_runs ? hs.workflow_runs[0] : null;
+      jobsByRun = {};
+      const live = runs.find(r => r.status === "in_progress" || r.status === "queued");
+      if (live) {
+        try { jobsByRun[live.id] = (await ghJson(`/actions/runs/${live.id}/jobs?per_page=30`)).jobs || []; } catch (e) {}
+      }
+      say("", true);
+      render();
+      schedule(Boolean(live));
+    } catch (e) {
+      say(e.status === 401 || e.status === 403 ? "الـ token مش مقبول أو ناقص صلاحيات (محتاج Actions + Contents read)." :
+          e.status === 404 ? "الريبو أو الـ token مش متظبطين (404). راجع الاسم والصلاحيات." : "مشكلة في الاتصال: " + e.message, false);
+    }
+  }
+  function schedule(live) {
+    clearTimeout(timer);
+    timer = setTimeout(() => { if (!document.hidden) refresh(); else schedule(live); }, live ? 30000 : 120000);
+  }
+
+  function nextRun(list) {
+    const now = new Date(); let best = null;
+    for (let d = 0; d < 2; d++) for (const t of (list || [])) {
+      const [h, m] = t.split(":").map(Number);
+      const c = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + d, h, m));
+      if (c > now && (!best || c < best)) best = c;
+    }
+    return best;
+  }
+
+  const RUN_STATUS = { queued: "في الطابور", in_progress: "شغال", waiting: "مستني" };
+  const CONCL = { success: ["تمام", "b-done"], failure: ["فشل", "b-attention"], cancelled: ["اتلغى", ""], skipped: ["اتخطى", ""], timed_out: ["انتهى الوقت", "b-attention"] };
+  const EVENT = { schedule: "تلقائي", workflow_dispatch: "يدوي" };
+
+  function render() {
+    const st = status;
+    $("sChannel").textContent = st && st.channel ? st.channel : "لسه ما اتفحصتش";
+    if (st) {
+      $("sQuota").textContent = `${st.quota.used} من ${st.quota.limit}`;
+      $("sReset").textContent = "بتتصفّر " + fmt(st.quota.resetsAt);
+      const nr = nextRun(st.config.schedule_utc);
+      $("sNext").textContent = nr ? fmt(nr.toISOString()) : "—";
+      $("sNote").textContent = st.planNote || "";
+      $("cMax").value = st.config.max_uploads_per_day; $("cMin").value = st.config.minutes_budget_per_run; $("cAtt").value = st.config.max_attempts;
+    } else {
+      $("sQuota").textContent = "—"; $("sReset").textContent = ""; $("sNext").textContent = "—";
+      $("sNote").textContent = "لسه مفيش تقرير. هيظهر بعد أول تشغيل بيعمل شغل.";
+    }
+    if (health) {
+      const ok = health.conclusion === "success";
+      $("sHealth").innerHTML = health.status !== "completed" ? "شغال دلوقتي" :
+        `<span class="${ok ? "b-done" : "b-attention"}">${ok ? "سليمة" : "فيه مشكلة!"}</span> <span class="meta">${esc(fmt(health.updated_at))}</span>`;
+    } else $("sHealth").textContent = "لسه";
+
+    // runs
+    const names = {}; ((st && st.folders) || []).forEach(f => names[f.id] = f.name);
+    $("runs").innerHTML = runs.length ? runs.map(r => {
+      const live = r.status !== "completed";
+      const label = live ? [RUN_STATUS[r.status] || r.status, "b-run"] : (CONCL[r.conclusion] || [r.conclusion, ""]);
+      let extra = "";
+      if (live && jobsByRun[r.id]) {
+        const act = jobsByRun[r.id].filter(j => j.status === "in_progress" && /^Process /.test(j.name));
+        const ids = act.flatMap(j => j.name.replace(/^Process /, "").split(","));
+        const step = act.length ? ((act[0].steps || []).find(s => s.status === "in_progress") || {}).name : "";
+        if (ids.length) extra = `<div class="meta">بيعالج: ${esc(ids.map(i => names[i] || i).join("، "))}${step ? " — " + esc(step) : ""}</div>`;
+        else extra = `<div class="meta">${esc((jobsByRun[r.id].find(j => j.status === "in_progress") || {}).name || "بيجهّز")}</div>`;
+      }
+      const url = safeGh(r.html_url);
+      const mins = r.status === "completed" ? Math.max(1, Math.round((new Date(r.updated_at) - new Date(r.run_started_at || r.created_at)) / 60000)) : null;
+      return `<div class="item"><div class="top"><div class="name">#${esc(r.run_number)} · ${esc(EVENT[r.event] || r.event)}</div>
+        <span class="badge ${label[1]}">${esc(label[0])}</span></div>
+        <div class="meta">${esc(fmt(r.run_started_at || r.created_at))}${mins ? " · " + mins + " دقيقة" : ""}${url ? ` · <a href="${esc(url)}" target="_blank" rel="noopener">اللوج</a>` : ""}</div>${extra}</div>`;
+    }).join("") : "مفيش تشغيلات لسه.";
+
+    // folders
+    const order = { attention: 0, retry: 1, pending: 2, done: 3 };
+    const fl = ((st && st.folders) || []).slice().sort((a, b) => order[a.status] - order[b.status]);
+    const LBL = { done: ["اترفع (Private)", "b-done"], pending: ["مستني", ""], retry: ["هيحاول تاني", "b-retry"], attention: ["محتاج تدخل", "b-attention"] };
+    const KIND = { video: "فيديو", audio_image: "صوت + صورة" };
+    $("folders").innerHTML = fl.length ? fl.map(f => {
+      const yt = safeYt(f.videoUrl);
+      let meta = [];
+      if (f.kind && KIND[f.kind]) meta.push(KIND[f.kind]);
+      if (f.bytes) meta.push(fmtGB(f.bytes));
+      if (f.estMinutes) meta.push("حوالي " + Math.round(f.estMinutes) + " دقيقة");
+      if (f.projectedRun) meta.push("متوقع: تشغيل " + f.projectedRun);
+      if (f.uploadedAt) meta.push(fmt(f.uploadedAt));
+      if (f.recovered) meta.push("لقيناه على القناة بنفس العنوان");
+      if (f.attempts) meta.push(f.attempts + " محاولة");
+      const btns = [];
+      if (f.status === "attention" || f.status === "retry") btns.push(["retry", "حاول تاني دلوقتي", ""], ["remove", "شيله من الطابور", "danger"]);
+      if (f.status === "pending") btns.push(["upload_now", "ارفعه دلوقتي", ""], ["prioritize", "قدّمه", "sec"], ["remove", "شيله", "danger"]);
+      if (f.status === "done") btns.push(["reupload", "إعادة رفع", "danger"]);
+      return `<div class="item"><div class="top"><div class="name">${esc(f.name)}</div><span class="badge ${LBL[f.status][1]}">${LBL[f.status][0]}</span></div>
+        <div class="meta">${esc(meta.join(" · "))}${yt ? ` · <a href="${esc(yt)}" target="_blank" rel="noopener">فتح الفيديو</a>` : ""}</div>
+        ${f.lastError && f.status !== "done" ? `<div class="meta b-attention">${esc(f.lastStage ? f.lastStage + ": " : "")}${esc(f.lastError)}</div>` : ""}
+        <div class="row" style="margin-top:6px">${btns.map(b => `<button class="${b[2] || ""} sm" data-act="${b[0]}" data-id="${esc(f.id)}" data-name="${esc(f.name)}">${b[1]}</button>`).join("")}</div></div>`;
+    }).join("") : "الطابور فاضي. ضيف فولدرات من تحت.";
+
+    // projection
+    const proj = (st && st.projection) || [];
+    $("projection").innerHTML = proj.length ? proj.map(p =>
+      `<div class="item"><div class="name">تشغيل ${p.run} · ${esc(fmt(p.when))}</div><div class="meta">${esc(p.ids.map(i => names[i] || i).join("، "))}</div></div>`).join("")
+      : "مفيش حاجة مستنية.";
+  }
+
+  $("folders").addEventListener("click", async e => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const act = b.dataset.act, id = b.dataset.id, name = b.dataset.name;
+    if (act === "remove" && !confirm(`تشيل "${name}" من الطابور؟`)) return;
+    if (act === "reupload" && !confirm(`إعادة رفع "${name}"؟\nلازم تمسح الفيديو القديم من اليوتيوب الأول، وإلا الـ workflow هيتخطاه لأن العنوان موجود.`)) return;
+    b.disabled = true;
+    try { await dispatch({ action: act, arg: id }); say("اتبعت الأمر. هيتنفذ خلال دقيقة تقريباً، والتشغيلات هتتحدث.", true); setTimeout(refresh, 8000); }
+    catch (err) { say(err.message, false); b.disabled = false; }
+  });
 
   $("save").onclick = () => {
-    store.set("clientId", $("clientId").value.trim());
-    store.set("ghToken", $("ghToken").value.trim());
-    store.set("repo", $("repo").value.trim());
-    store.set("branch", $("branch").value.trim() || "main");
-    tokenClient = null;
-    msg("اتحفظت الإعدادات.", true);
+    store.set("ghToken", cfg.token); store.set("repo", cfg.repo); store.set("branch", cfg.branch); store.set("clientId", $("clientId").value.trim());
+    tokenClient = null; refresh();
+  };
+  $("refresh").onclick = refresh;
+  $("runNow").onclick = async () => { try { await dispatch({ action: "add" }); say("اتبعت أمر التشغيل.", true); setTimeout(refresh, 8000); } catch (e) { say(e.message, false); } };
+  $("dryRun").onclick = async () => { try { await dispatch({ dry_run: "true" }); say("اتبعت الفحص. النتيجة هتظهر في الفولدرات بعد ما يخلص.", true); setTimeout(refresh, 8000); } catch (e) { say(e.message, false); } };
+  $("saveCfg").onclick = async () => {
+    const v = { max_uploads_per_day: +$("cMax").value, minutes_budget_per_run: +$("cMin").value, max_attempts: +$("cAtt").value };
+    try { await dispatch({ action: "set_config", arg: JSON.stringify(v) }); say("اتبعت الإعدادات. هتتطبق بعد ما التشغيل يخلص.", true); setTimeout(refresh, 8000); }
+    catch (e) { say(e.message, false); }
   };
 
-  function msg(text, ok) {
-    $("result").innerHTML = `<div class="msg ${ok ? "ok" : "err"}">${esc(text)}</div>`;
-  }
+  // ------------------------------------------------------------ Drive browser
+  const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+  const DRIVE = "https://www.googleapis.com/drive/v3/files";
+  const AUDIO = /\.(mp3|m4a|wav|flac|ogg|oga|opus|aac|wma|aiff?|amr|mka|weba|m4b)$/i;
+  const IMAGE = /\.(jpe?g|png|webp|bmp|tiff?|gif)$/i;
+  let accessToken = null, tokenClient = null, stack = [{ id: "root", name: "My Drive" }];
+  const selected = new Map();
 
   $("signin").onclick = () => {
     const cid = $("clientId").value.trim();
-    if (!cid) return msg("اكتب الـ Client ID واضغط حفظ الأول.", false);
-    if (!window.google || !google.accounts) return msg("مكتبة جوجل لسه بتحمّل، جرب كمان ثانية.", false);
+    if (!cid) return say("اكتب الـ Client ID واضغط حفظ الأول.", false);
+    if (!window.google || !google.accounts) return say("مكتبة جوجل لسه بتحمّل، جرب كمان ثانية.", false);
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: cid, scope: SCOPE,
       callback: resp => {
-        if (resp.error) return msg("فشل تسجيل الدخول: " + resp.error, false);
+        if (resp.error) return say("فشل تسجيل الدخول: " + resp.error, false);
         accessToken = resp.access_token;
         ["goRoot", "goShared", "selAll", "selNone"].forEach(i => $(i).disabled = false);
-        stack = [{ id: "root", name: "My Drive" }];
-        load();
+        stack = [{ id: "root", name: "My Drive" }]; load();
       }
     });
     tokenClient.requestAccessToken({ prompt: "select_account" });
   };
 
   async function drive(params) {
-    const u = new URL(API);
-    Object.entries({ supportsAllDrives: "true", includeItemsFromAllDrives: "true", pageSize: "200", ...params })
-      .forEach(([k, v]) => u.searchParams.set(k, v));
+    const u = new URL(DRIVE);
+    Object.entries({ supportsAllDrives: "true", includeItemsFromAllDrives: "true", pageSize: "200", ...params }).forEach(([k, v]) => u.searchParams.set(k, v));
     const r = await fetch(u, { headers: { Authorization: "Bearer " + accessToken } });
     if (r.status === 401) { accessToken = null; throw new Error("انتهت الجلسة، سجّل الدخول تاني."); }
     if (!r.ok) throw new Error("Drive error " + r.status);
@@ -148,7 +361,8 @@
 
   async function load() {
     const cur = stack[stack.length - 1];
-    renderCrumbs();
+    $("crumbs").innerHTML = stack.map((s, i) => i === stack.length - 1 ? `<b>${esc(s.name)}</b>` : `<a data-i="${i}">${esc(s.name)}</a>`).join(" › ");
+    $("crumbs").querySelectorAll("a").forEach(a => a.onclick = () => { stack = stack.slice(0, +a.dataset.i + 1); load(); });
     $("list").innerHTML = '<p class="small">جاري التحميل...</p>';
     try {
       const q = cur.id === "shared"
@@ -156,47 +370,48 @@
         : `'${cur.id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
       const j = await drive({ q, fields: "files(id,name)", orderBy: "name_natural" });
       renderList(j.files || []);
-    } catch (e) { $("list").innerHTML = ""; msg(e.message, false); }
-  }
-
-  function renderCrumbs() {
-    $("crumbs").innerHTML = stack.map((s, i) =>
-      i === stack.length - 1 ? `<b>${esc(s.name)}</b>` : `<a data-i="${i}">${esc(s.name)}</a>`).join(" › ");
-    $("crumbs").querySelectorAll("a").forEach(a => a.onclick = () => { stack = stack.slice(0, +a.dataset.i + 1); load(); });
+    } catch (e) { $("list").innerHTML = ""; say(e.message, false); }
   }
 
   function renderList(folders) {
     if (!folders.length) { $("list").innerHTML = '<p class="small">مفيش فولدرات هنا.</p>'; return; }
     $("list").innerHTML = folders.map(f => `
       <div class="item" data-id="${esc(f.id)}" data-name="${esc(f.name)}">
-        <input type="checkbox" ${selected.has(f.id) ? "checked" : ""}>
-        <div class="name">${esc(f.name)}<div class="meta">...</div></div>
-        <button class="sec open">فتح</button>
-      </div>`).join("");
+        <div class="top pick"><input type="checkbox" ${selected.has(f.id) ? "checked" : ""}>
+          <div class="name">${esc(f.name)}</div><button class="sec sm open">فتح</button></div>
+        <div class="chips"><span class="chip">...</span></div></div>`).join("");
     $("list").querySelectorAll(".item").forEach(row => {
       const id = row.dataset.id, name = row.dataset.name;
       row.querySelector("input").onchange = e => { e.target.checked ? selected.set(id, name) : selected.delete(id); updateChosen(); };
       row.querySelector(".open").onclick = () => { stack.push({ id, name }); load(); };
-      fileInfo(id, row.querySelector(".meta"));
+      inspect(id, name, row);
     });
     updateChosen();
   }
 
-  async function fileInfo(id, el) {
+  async function inspect(id, name, row) {
+    const chips = row.querySelector(".chips"), cb = row.querySelector("input");
     try {
-      let count = 0, size = 0, hasDesc = false, token = null;
+      let files = [], token = null;
       do {
         const p = { q: `'${id}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`, fields: "nextPageToken,files(name,size)" };
         if (token) p.pageToken = token;
-        const j = await drive(p);
-        (j.files || []).forEach(f => {
-          if (/\.mp4$/i.test(f.name)) { count++; size += +f.size || 0; }
-          if (f.name.trim().toLowerCase() === "description.txt") hasDesc = true;
-        });
-        token = j.nextPageToken;
+        const j = await drive(p); files = files.concat(j.files || []); token = j.nextPageToken;
       } while (token);
-      el.textContent = `${count} فيديو · ${fmtGB(size)}${hasDesc ? " · فيه description.txt" : ""}`;
-    } catch (e) { el.textContent = ""; }
+      const mp4 = files.filter(f => /\.mp4$/i.test(f.name)), audio = files.filter(f => AUDIO.test(f.name)), img = files.filter(f => IMAGE.test(f.name));
+      const hasDesc = files.some(f => f.name.trim().toLowerCase() === "description.txt");
+      const sum = a => a.reduce((s, f) => s + (+f.size || 0), 0);
+      const out = [];
+      if (mp4.length) out.push(`<span class="chip good">فيديو: ${mp4.length} ${mp4.length > 1 ? "أجزاء" : "ملف"} · ${fmtGB(sum(mp4))}</span>`);
+      else if (audio.length && img.length) out.push(`<span class="chip good">صوت + صورة: ${audio.length} صوت · ${fmtGB(sum(audio) + sum(img))}</span>`);
+      else { out.push(`<span class="chip bad">مفيش mp4 ولا صوت+صورة، مش هيتعالج</span>`); cb.disabled = true; cb.checked = false; selected.delete(id); updateChosen(); }
+      if (!mp4.length && audio.length && img.length > 1 && !img.some(f => /^(thumbnail|cover)\./i.test(f.name.trim())))
+        out.push(`<span class="chip warn">أكتر من صورة: هياخد أول واحدة بالترتيب (سمّي الصورة thumbnail أو cover)</span>`);
+      if (mp4.length && sum(mp4) > 12e9) out.push(`<span class="chip bad">أكبر من 12 GB: هيتعلّم محتاج تدخل</span>`);
+      if (name.length > 100) out.push(`<span class="chip warn">العنوان أطول من 100 حرف وهيتقص</span>`);
+      if (!hasDesc) out.push(`<span class="chip warn">مفيش description.txt</span>`);
+      chips.innerHTML = out.join("");
+    } catch (e) { chips.innerHTML = ""; }
   }
 
   function updateChosen() {
@@ -204,11 +419,10 @@
     $("chosen").textContent = n ? `المحدد: ${n} — ${[...selected.values()].join(" ، ")}` : "مفيش فولدرات متحددة.";
     $("run").disabled = n === 0;
   }
-
   $("goRoot").onclick = () => { stack = [{ id: "root", name: "My Drive" }]; load(); };
   $("goShared").onclick = () => { stack = [{ id: "shared", name: "Shared with me" }]; load(); };
   const setAll = on => $("list").querySelectorAll(".item").forEach(row => {
-    const cb = row.querySelector("input"); cb.checked = on;
+    const cb = row.querySelector("input"); if (cb.disabled) return; cb.checked = on;
     on ? selected.set(row.dataset.id, row.dataset.name) : selected.delete(row.dataset.id);
   });
   $("selAll").onclick = () => { setAll(true); updateChosen(); };
@@ -216,24 +430,17 @@
 
   $("run").onclick = async () => {
     const ids = [...selected.keys()].join(",");
-    const gh = $("ghToken").value.trim(), repo = $("repo").value.trim(), branch = $("branch").value.trim() || "main";
-    if (!gh) {
-      $("result").innerHTML = `<div class="msg err">مفيش GitHub token. انسخ الـ IDs دي وحطها في Run workflow يدوي:<br><code>${esc(ids)}</code></div>`;
-      try { await navigator.clipboard.writeText(ids); } catch (e) {}
-      return;
-    }
+    if (!cfg.token) { sayHtml(`مفيش GitHub token. انسخ الـ IDs دي وحطها في Run workflow يدوي:<br><code>${esc(ids)}</code>`, false); try { await navigator.clipboard.writeText(ids); } catch (e) {} return; }
     $("run").disabled = true;
     try {
-      const r = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/merge-upload.yml/dispatches`, {
-        method: "POST",
-        headers: { Authorization: "Bearer " + gh, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
-        body: JSON.stringify({ ref: branch, inputs: { folder_ids: ids } })
-      });
-      if (r.status === 204) msg(`اتبعت ${selected.size} فولدر للمعالجة. تابع التقدم من <a href="https://github.com/KyrillosMorgan/drive-to-youtube-merger/actions" target="_blank">هنا</a>`, true);
-      else msg(`GitHub رفض الطلب (${r.status}): ${(await r.text()).slice(0, 200)}`, false);
-    } catch (e) { msg("فشل الاتصال بـ GitHub: " + e.message, false); }
-    $("run").disabled = selected.size === 0;
+      await dispatch({ folder_ids: ids });
+      const n = selected.size; selected.clear(); updateChosen(); setAll(false);
+      sayHtml(`اتبعت ${n} فولدر للمعالجة. تابع التقدم من فوق (بيتحدث لوحده)، أو من <a href="https://github.com/${esc(cfg.repo)}/actions" target="_blank" rel="noopener">هنا</a>.`, true);
+      setTimeout(refresh, 8000);
+    } catch (e) { say(e.message, false); updateChosen(); }
   };
+
+  refresh();
 })();
 </script>
 </body>
