@@ -82,6 +82,7 @@
   <div class="row">
     <button id="runNow">شغّل دلوقتي</button>
     <button class="sec" id="dryRun">فحص بدون رفع (Dry run)</button>
+    <button class="sec" id="dbg">نزّل ملف التشخيص</button>
   </div>
 </div>
 
@@ -184,11 +185,19 @@
     if (!r.ok) throw Object.assign(new Error("GitHub " + r.status), { status: r.status });
     return JSON.parse(await r.text());
   }
+  // Short local log of what was done from this page (no tokens), included in the debug file.
+  function logAct(what, extra) {
+    try {
+      const a = JSON.parse(store.get("actLog", "[]")); a.push({ at: new Date().toISOString(), what, ...(extra ? { extra } : {}) });
+      store.set("actLog", JSON.stringify(a.slice(-60)));
+    } catch (e) {}
+  }
   async function dispatch(inputs) {
     const body = { ref: cfg.branch, inputs: Object.fromEntries(Object.entries(inputs).map(([k, v]) => [k, String(v)])) };
     const r = await fetch(`${GH}/repos/${cfg.repo}/actions/workflows/${WF}/dispatches`, {
       method: "POST", headers: ghHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(body) });
-    if (r.status !== 204) throw new Error(`GitHub رفض الطلب (${r.status}): ${(await r.text()).slice(0, 160)}`);
+    if (r.status !== 204) { const t = (await r.text()).slice(0, 160); logAct("dispatch FAILED " + r.status, { inputs, body: t }); throw new Error(`GitHub رفض الطلب (${r.status}): ${t}`); }
+    logAct("dispatch ok", inputs);
   }
 
   // ------------------------------------------------------------ load + render
@@ -361,6 +370,69 @@
     catch (err) { say(err.message, false); b.disabled = false; }
   });
 
+  async function debugReport() {
+    const out = [], P = (...a) => out.push(a.join(""));
+    const safe = async (fn) => { try { return await fn(); } catch (e) { return { _error: String(e.message || e) }; } };
+    const now = new Date();
+    const [st, queue, conf, qb, rs, hs] = await Promise.all([
+      safe(() => ghFile("status.json")), safe(() => ghFile("queue.json")), safe(() => ghFile("config.json")), safe(() => ghFile("quota_block.json")),
+      safe(() => ghJson(`/actions/workflows/${WF}/runs?per_page=10`)), safe(() => ghJson(`/actions/workflows/${HEALTH}/runs?per_page=3`))]);
+    const runList = (rs && rs.workflow_runs) || [];
+    for (const r of runList.slice(0, 6)) {
+      r._jobs = await safe(async () => ((await ghJson(`/actions/runs/${r.id}/jobs?per_page=30`)).jobs || []).map(j => ({
+        name: j.name, status: j.status, conclusion: j.conclusion,
+        steps: (j.steps || []).filter(x => x.conclusion && x.conclusion !== "success" && x.conclusion !== "skipped").map(x => `${x.name}: ${x.conclusion}`) })));
+    }
+    P("# Debug report: drive-to-youtube");
+    P("generated: ", now.toISOString(), " (browser time zone: ", Intl.DateTimeFormat().resolvedOptions().timeZone, ")");
+    P("repo: ", cfg.repo, " branch: ", cfg.branch, "   (no tokens are included in this file)");
+    P("\n## Quota and config");
+    if (st && !st._error) {
+      P("quota (from status.json): ", JSON.stringify(st.quota), "   current Pacific quota day: ", pacificDay(now), st.quota && st.quota.day !== pacificDay(now) ? "  -> stored quota is from an OLD day (treated as 0 used)" : "");
+      P("config: ", JSON.stringify(st.config));
+      P("status.json generated at: ", st.generatedAt, "   channel: ", JSON.stringify(st.channel), "   next scheduled run: ", st.nextScheduledRun);
+      P("counts: ", JSON.stringify(st.counts), "   planNote: ", st.planNote || "-");
+    } else P("status.json: ", JSON.stringify(st), "  (does not exist yet or unreadable; run Dry run)");
+    P("config.json: ", JSON.stringify(conf));
+    P("quota_block.json: ", JSON.stringify(qb), qb && qb.day === undefined && !qb._error ? "" : "");
+    P("\n## Queue (queue.json, in order)\n", JSON.stringify(queue));
+    if (st && !st._error && Array.isArray(st.folders)) {
+      const sim = simulate(st, now), byS = k => st.folders.filter(f => f.status === k);
+      const line = f => `- ${f.name}  [id ${f.id}] kind=${f.kind} files=${f.files} size=${f.bytes ? fmtGB(f.bytes) : "?"} est=${f.estMinutes == null ? "not evaluated" : Math.round(f.estMinutes) + "min"} desc=${f.hasDescription ? "yes" : "no"}` +
+        (f.attempts ? ` attempts=${f.attempts}` : "") + (f.lastError ? ` | lastError(${f.lastStage || "?"}, ${f.lastErrorAt || "?"}): ${f.lastError}` : "") + (f.videoUrl ? ` | ${f.videoUrl}` : "") + (f.uploadedAt ? ` | uploaded ${f.uploadedAt}` : "");
+      P("\n## Uploaded already (", byS("done").length, ")"); byS("done").forEach(f => P(line(f)));
+      P("\n## Needs attention (", byS("attention").length, ")"); byS("attention").forEach(f => P(line(f)));
+      P("\n## Waiting / retry, with planned run (computed in the browser now)");
+      sim.runs.forEach((r, i) => { P("Run ", i + 1, " at ", r.when.toISOString(), ":"); r.folders.forEach(f => P("  ", line(f))); });
+      if (sim.unscheduled.length) { P("No near slot:"); sim.unscheduled.forEach(f => P("  ", line(f))); }
+      if (sim.unknown.length) { P("Not evaluated yet (need Dry run):"); sim.unknown.forEach(f => P("  ", line(f))); }
+      P("\n## Server-side projection (status.json)\n", JSON.stringify(st.projection));
+    }
+    P("\n## Recent workflow runs");
+    runList.forEach(r => {
+      P("#", r.run_number, " ", r.event, " ", r.status, "/", r.conclusion || "-", " created ", r.created_at, " updated ", r.updated_at, " ", r.html_url);
+      if (Array.isArray(r._jobs)) r._jobs.forEach(j => P("    job ", j.name, ": ", j.status, "/", j.conclusion || "-", j.steps.length ? "  problem steps: " + j.steps.join("; ") : ""));
+    });
+    if (!runList.length) P(JSON.stringify(rs));
+    P("\n## Weekly health check\n", JSON.stringify(((hs && hs.workflow_runs) || []).map(r => ({ at: r.updated_at, result: r.conclusion, status: r.status })) ));
+    P("\n## What was done from this page (latest last)");
+    try { JSON.parse(store.get("actLog", "[]")).forEach(a => P(a.at, "  ", a.what, a.extra ? "  " + JSON.stringify(a.extra) : "")); } catch (e) { P("(none)"); }
+    return out.join("\n");
+  }
+  $("dbg").onclick = async () => {
+    if (!cfg.token) { say("اكتب الـ GitHub token في الإعدادات الأول.", false); return; }
+    const b = $("dbg"); b.disabled = true; say("بجهّز ملف التشخيص...", true);
+    try {
+      const text = await debugReport();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+      a.download = "debug-report-" + new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-") + ".txt";
+      document.body.appendChild(a); a.click(); a.remove();
+      say("اتنزّل ملف التشخيص (debug-report). ابعته لـ Claude.", true);
+    } catch (e) { say("فشل تجهيز الملف: " + e.message, false); }
+    b.disabled = false;
+  };
+
   $("save").onclick = () => {
     store.set("ghToken", cfg.token); store.set("repo", cfg.repo); store.set("branch", cfg.branch); store.set("clientId", $("clientId").value.trim());
     tokenClient = null; refresh();
@@ -481,6 +553,7 @@
     if (!cfg.token) { sayHtml(`مفيش GitHub token. انسخ الـ IDs دي وحطها في Run workflow يدوي:<br><code>${esc(ids)}</code>`, false); try { await navigator.clipboard.writeText(ids); } catch (e) {} return; }
     $("run").disabled = true;
     try {
+      logAct("اختار فولدرات من الدرايف", [...selected.entries()].map(([k, v]) => ({ id: k, name: v && v.name ? v.name : v })));
       await dispatch({ folder_ids: ids });
       const n = selected.size; selected.clear(); updateChosen(); setAll(false);
       sayHtml(`اتبعت ${n} فولدر للمعالجة. تابع التقدم من فوق (بيتحدث لوحده)، أو من <a href="https://github.com/${esc(cfg.repo)}/actions" target="_blank" rel="noopener">هنا</a>.`, true);
