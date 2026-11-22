@@ -377,6 +377,10 @@
     const [st, queue, conf, qb, rs, hs] = await Promise.all([
       safe(() => ghFile("status.json")), safe(() => ghFile("queue.json")), safe(() => ghFile("config.json")), safe(() => ghFile("quota_block.json")),
       safe(() => ghJson(`/actions/workflows/${WF}/runs?per_page=10`)), safe(() => ghJson(`/actions/workflows/${HEALTH}/runs?per_page=3`))]);
+    const plan = await safe(() => ghFile("plan.json"));
+    const qIds = Array.isArray(queue) ? queue.map(q => q.id).filter(i => /^[\w-]{4,100}$/.test(i)).slice(0, 40) : [];
+    const perFolder = {};
+    for (const id of qIds) perFolder[id] = { state: await safe(() => ghFile(`state/${id}.json`)), failure: await safe(() => ghFile(`failures/${id}.json`)) };
     const runList = (rs && rs.workflow_runs) || [];
     for (const r of runList.slice(0, 6)) {
       r._jobs = await safe(async () => ((await ghJson(`/actions/runs/${r.id}/jobs?per_page=30`)).jobs || []).map(j => ({
@@ -396,6 +400,21 @@
     P("config.json: ", JSON.stringify(conf));
     P("quota_block.json: ", JSON.stringify(qb), qb && qb.day === undefined && !qb._error ? "" : "");
     P("\n## Queue (queue.json, in order)\n", JSON.stringify(queue));
+    P("\n## Per queue entry: state / failure files, as stored in the repo");
+    qIds.forEach(id => {
+      const q = queue.find(x => x.id === id), pf = perFolder[id];
+      P("- ", q.name || id, "  [", id, "]");
+      P("    state/", id, ".json: ", JSON.stringify(pf.state));
+      P("    failures/", id, ".json: ", JSON.stringify(pf.failure));
+      P("    plan.json entry: ", JSON.stringify(plan && plan.folders ? plan.folders[id] : null));
+    });
+    const nameCount = {};
+    (Array.isArray(queue) ? queue : []).forEach(q => { nameCount[q.name] = (nameCount[q.name] || 0) + 1; });
+    if (st && !st._error && Array.isArray(st.folders)) st.folders.forEach(f => { nameCount[f.name] = (nameCount[f.name] || 0) + 1; });
+    const dups = Object.entries(nameCount).filter(([n, c]) => n && c > 1);
+    P("\n## Folders sharing the same name (YouTube title would be identical): ", dups.length ? "" : "none");
+    dups.forEach(([n, c]) => P("- ", c, " x ", n));
+    P("\n## plan.json (last plan: note, chosen, batches)\n", JSON.stringify(plan && !plan._error ? { generatedAt: plan.generatedAt, dryRun: plan.dryRun, note: plan.note, quota: plan.quota, chosen: plan.chosen, batches: plan.batches } : plan));
     if (st && !st._error && Array.isArray(st.folders)) {
       const sim = simulate(st, now), byS = k => st.folders.filter(f => f.status === k);
       const line = f => `- ${f.name}  [id ${f.id}] kind=${f.kind} files=${f.files} size=${f.bytes ? fmtGB(f.bytes) : "?"} est=${f.estMinutes == null ? "not evaluated" : Math.round(f.estMinutes) + "min"} desc=${f.hasDescription ? "yes" : "no"}` +
