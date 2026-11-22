@@ -1,5 +1,4 @@
 <!doctype html>
-<!--edit-->
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
@@ -77,7 +76,9 @@
     <div class="stat"><div class="k">التشغيل التلقائي الجاي</div><div class="v" id="sNext">—</div><div class="meta">GitHub ممكن يتأخر ساعات</div></div>
     <div class="stat"><div class="k">آخر فحص للتوكنات</div><div class="v" id="sHealth">—</div></div>
   </div>
-  <div id="sNote" class="small" style="margin-top:8px"></div>
+  <div class="stat" style="margin-top:10px"><div class="k">هيترفع في التشغيل الجاي</div><div id="sNextUp" class="v" style="font-weight:500">—</div></div>
+  <div id="sCounts" class="small" style="margin-top:8px"></div>
+  <div id="sNote" class="small" style="margin-top:4px"></div>
   <div class="row">
     <button id="runNow">شغّل دلوقتي</button>
     <button class="sec" id="dryRun">فحص بدون رفع (Dry run)</button>
@@ -95,9 +96,9 @@
 </div>
 
 <div class="card">
-  <h2>الجدول المتوقع</h2>
+  <h2>لسه هيترفع (حسب الترتيب)</h2>
   <div id="projection" class="small">—</div>
-  <p class="small">ده تقدير من الحجم والكوتا، بيتعدل لو حاجة فشلت أو GitHub اتأخر.</p>
+  <p class="small">التوزيع ده تقدير من الحجم والكوتا وبيتحسب كل ما تفتح الصفحة، بافتراض إن التشغيل بيشتغل في ميعاده. بيتعدل لو حاجة فشلت أو GitHub اتأخر.</p>
 </div>
 
 <div class="card">
@@ -218,6 +219,34 @@
     timer = setTimeout(() => { if (!document.hidden) refresh(); else schedule(live); }, live ? 30000 : 120000);
   }
 
+  const pacificDay = d => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const sizeTxt = f => [f.bytes ? fmtGB(f.bytes) : null, f.estMinutes ? "حوالي " + Math.round(f.estMinutes) + " د" : null].filter(Boolean).join(" · ");
+
+  // Mirrors pipeline.py: first-fit in queue order, quota shared by all runs of the same quota day.
+  function simulate(st, now) {
+    const c = st.config, limit = c.max_uploads_per_day, budget = c.minutes_budget_per_run;
+    const usedByDay = { [pacificDay(now)]: st.quota.day === pacificDay(now) ? st.quota.used : 0 };
+    const waiting = st.folders.filter(f => f.status === "pending" || f.status === "retry");
+    let remaining = waiting.filter(f => f.estMinutes != null);
+    const unknown = waiting.filter(f => f.estMinutes == null);
+    const runs = [];
+    for (let d = 0; d < 40 && remaining.length; d++) for (const t of (c.schedule_utc || []).slice().sort()) {
+      if (!remaining.length) break;
+      const [h, m] = t.split(":").map(Number);
+      const when = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + d, h, m));
+      if (when <= now) continue;
+      const day = pacificDay(when), left = limit - (usedByDay[day] || 0);
+      if (left <= 0) continue;
+      let minutes = budget; const chosen = [];
+      for (const f of remaining) {
+        if (chosen.length >= left) break;
+        if (f.estMinutes <= minutes || (!chosen.length && f.estMinutes <= 330)) { chosen.push(f); minutes -= f.estMinutes; }
+      }
+      if (chosen.length) { runs.push({ when, folders: chosen }); usedByDay[day] = (usedByDay[day] || 0) + chosen.length; remaining = remaining.filter(f => !chosen.includes(f)); }
+    }
+    return { runs, unknown, unscheduled: remaining };
+  }
+
   function nextRun(list) {
     const now = new Date(); let best = null;
     for (let d = 0; d < 2; d++) for (const t of (list || [])) {
@@ -236,14 +265,25 @@
     const st = status;
     $("sChannel").textContent = st && st.channel ? st.channel : "لسه ما اتفحصتش";
     if (st) {
-      $("sQuota").textContent = `${st.quota.used} من ${st.quota.limit}`;
-      $("sReset").textContent = "بتتصفّر " + fmt(st.quota.resetsAt);
+      const fresh = st.quota.day === pacificDay(new Date());
+      $("sQuota").textContent = `${fresh ? st.quota.used : 0} من ${st.config.max_uploads_per_day}`;
+      $("sReset").textContent = fresh ? "بتتصفّر " + fmt(st.quota.resetsAt) : "اتصفّرت، يوم جديد";
       const nr = nextRun(st.config.schedule_utc);
       $("sNext").textContent = nr ? fmt(nr.toISOString()) : "—";
       $("sNote").textContent = st.planNote || "";
       $("cMax").value = st.config.max_uploads_per_day; $("cMin").value = st.config.minutes_budget_per_run; $("cAtt").value = st.config.max_attempts;
+      const sim = simulate(st, new Date());
+      const n = k => st.folders.filter(f => f.status === k).length;
+      $("sCounts").textContent = `اترفع: ${n("done")} · مستني: ${n("pending")} · هيحاول تاني: ${n("retry")} · محتاج تدخل: ${n("attention")}`;
+      if (sim.runs.length) {
+        $("sNextUp").innerHTML = `<div class="meta">${esc(fmt(sim.runs[0].when.toISOString()))}</div>` +
+          sim.runs[0].folders.map(f => `<div>• ${esc(f.name)} <span class="meta">${esc(sizeTxt(f))}</span></div>`).join("");
+      } else if (sim.unknown.length) {
+        $("sNextUp").innerHTML = `<span class="meta">فيه ${sim.unknown.length} فولدر لسه ما اتقيّمش. دوس "فحص بدون رفع (Dry run)" عشان يتحسب.</span>`;
+      } else $("sNextUp").innerHTML = `<span class="meta">مفيش حاجة مستنية.</span>`;
+      st._sim = sim;
     } else {
-      $("sQuota").textContent = "—"; $("sReset").textContent = ""; $("sNext").textContent = "—";
+      $("sQuota").textContent = "—"; $("sReset").textContent = ""; $("sNext").textContent = "—"; $("sNextUp").textContent = "—"; $("sCounts").textContent = "";
       $("sNote").textContent = "لسه مفيش تقرير. هيظهر بعد أول تشغيل بيعمل شغل.";
     }
     if (health) {
@@ -283,7 +323,9 @@
       if (f.kind && KIND[f.kind]) meta.push(KIND[f.kind]);
       if (f.bytes) meta.push(fmtGB(f.bytes));
       if (f.estMinutes) meta.push("حوالي " + Math.round(f.estMinutes) + " دقيقة");
-      if (f.projectedRun) meta.push("متوقع: تشغيل " + f.projectedRun);
+      const ri = st._sim ? st._sim.runs.findIndex(r => r.folders.some(x => x.id === f.id)) : -1;
+      if (ri >= 0) meta.push(ri === 0 ? "هيترفع في التشغيل الجاي" : "متوقع: " + fmt(st._sim.runs[ri].when.toISOString()));
+      else if (f.status === "pending" || f.status === "retry") meta.push(f.estMinutes == null ? "لسه ما اتقيّمش" : "مستني");
       if (f.uploadedAt) meta.push(fmt(f.uploadedAt));
       if (f.recovered) meta.push("لقيناه على القناة بنفس العنوان");
       if (f.attempts) meta.push(f.attempts + " محاولة");
@@ -297,11 +339,16 @@
         <div class="row" style="margin-top:6px">${btns.map(b => `<button class="${b[2] || ""} sm" data-act="${b[0]}" data-id="${esc(f.id)}" data-name="${esc(f.name)}">${b[1]}</button>`).join("")}</div></div>`;
     }).join("") : "الطابور فاضي. ضيف فولدرات من تحت.";
 
-    // projection
-    const proj = (st && st.projection) || [];
-    $("projection").innerHTML = proj.length ? proj.map(p =>
-      `<div class="item"><div class="name">تشغيل ${p.run} · ${esc(fmt(p.when))}</div><div class="meta">${esc(p.ids.map(i => names[i] || i).join("، "))}</div></div>`).join("")
-      : "مفيش حاجة مستنية.";
+    // all folders that are still waiting, grouped by planned run
+    const sim = st && st._sim;
+    if (!sim) { $("projection").textContent = "—"; }
+    else {
+      const parts = sim.runs.map((r, i) => `<div class="item"><div class="name">${i === 0 ? "التشغيل الجاي" : "بعده"} · ${esc(fmt(r.when.toISOString()))} <span class="meta">(${r.folders.length} فيديو)</span></div>` +
+        r.folders.map(f => `<div class="meta">• ${esc(f.name)}${sizeTxt(f) ? " — " + esc(sizeTxt(f)) : ""}</div>`).join("") + `</div>`);
+      if (sim.unscheduled.length) parts.push(`<div class="item"><div class="name">مفيش ميعاد قريب</div>${sim.unscheduled.map(f => `<div class="meta">• ${esc(f.name)}</div>`).join("")}</div>`);
+      if (sim.unknown.length) parts.push(`<div class="item"><div class="name">لسه ما اتقيّمتش</div><div class="meta">دوس Dry run عشان يتحسب حجمها وميعادها.</div>${sim.unknown.map(f => `<div class="meta">• ${esc(f.name)}</div>`).join("")}</div>`);
+      $("projection").innerHTML = parts.length ? parts.join("") : "مفيش حاجة مستنية.";
+    }
   }
 
   $("folders").addEventListener("click", async e => {
